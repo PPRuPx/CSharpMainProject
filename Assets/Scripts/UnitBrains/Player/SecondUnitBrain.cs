@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using Model;
 using Model.Runtime.Projectiles;
@@ -9,9 +10,13 @@ namespace UnitBrains.Player
 {
     public class SecondUnitBrain : DefaultPlayerUnitBrain
     {
+        private static int _unitCounter = 0;
+        private int _unitNumber = _unitCounter++;
+        
         public override string TargetUnitName => "Cobra Commando";
         private const float OverheatTemperature = 3f;
         private const float OverheatCooldown = 2f;
+        private const int SmartTargetingFactor = 3;
         private float _temperature = 0f;
         private float _cooldownTime = 0f;
         private bool _overheated;
@@ -38,34 +43,27 @@ namespace UnitBrains.Player
                 ? _priorityTargets.First() 
                 : runtimeModel.RoMap.Bases[RuntimeModel.BotPlayerId];
 
-            if (IsTargetInRange(target))
-                return unit.Pos;
-
-            return unit.Pos.CalcNextStepTowards(target);
+            return IsTargetInRange(target) 
+                ? unit.Pos 
+                : unit.Pos.CalcNextStepTowards(target);
         }
 
         protected override List<Vector2Int> SelectTargets()
         {
-            List<Vector2Int> result = GetAllTargets().ToList();
+            // Enemy base already in GetAllTargets(). No need to add it explicitly.
+            var result = GetAllTargets().ToList();
+            SortByDistanceToOwnBase(result);
             
-            Vector2Int closestTarget = result.First();
-            float closestDistance = float.MaxValue;
-            foreach (var target in result)
-            {
-                float targetDistance = DistanceToOwnBase(target);
-                if (closestDistance > targetDistance)
-                {
-                    closestDistance = targetDistance;
-                    closestTarget = target;
-                }
-            }
+            // In case if number of targets is less than smart targeting factor
+            var divider = Math.Min(result.Count, SmartTargetingFactor);
+            var target = result[_unitNumber % divider];
             
             _priorityTargets.Clear();
-            _priorityTargets.Add(closestTarget);
+            _priorityTargets.Add(target);
             
             result.Clear();
-            if (IsTargetInRange(closestTarget))
-                result.Add(closestTarget);
+            if (IsTargetInRange(target))
+                result.Add(target);
             
             return result;
         }
